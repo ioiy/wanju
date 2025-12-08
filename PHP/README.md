@@ -29,3 +29,14 @@
 * 本项目依赖 PHP 的 `exec`， `shell_exec`， `passthru` 等函数，请确保主机未禁用这些函数。
 * `start.sh` 会自动生成配置文件并保存在 `.tmp` 目录下，请勿手动删除该目录。
 * 修改配置后，建议先访问 `/kill.php` 清理进程，再访问 `/start` 重新启动。
+
+域名后缀功能详解基于 index.php 和 .htaccess 的代码逻辑，以下是每个 URL 后缀的具体功能：
+域名后缀 (Route)对应功能详细说明/ (根路径)存活检测访问根域名，返回 "Hello world"。用于确认 PHP 解析是否正常，或作为保活监控的端点。
+/start启动服务调用 start.sh 脚本。如果服务未运行，它会下载核心、生成配置并启动 Sing-box、Argo 隧道和 Nezha Agent。
+/restart重启服务功能同 
+/start。在逻辑上通常用于强制重新执行启动脚本（注：建议先执行清理再重启）。
+/status状态监控与保活最核心的保活接口。它会检查关键进程（Cloudflared, Sing-box, Nezha）是否在运行。❌ 如果未运行：自动触发启动脚本。✅ 如果运行中：返回 "All services are running"。建议配合定时任务（Cron）每几分钟访问一次此链接。
+/list进程列表执行 ps aux 命令，打印当前服务器上所有的进程列表。用于调试和查看系统负载。
+/check环境诊断加载 check.php，以图形化界面显示服务器环境信息（PHP 函数禁用情况、Python/Node 版本等）。
+/sub获取订阅读取 .tmp/sub.txt 文件内容并输出。这是你的节点订阅链接内容，通常配合 V2rayN 或 Clash 使用。
+
