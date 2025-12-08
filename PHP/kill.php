@@ -17,8 +17,8 @@ if (empty($currentUser)) {
 
 $currentPid = getmypid(); // 获取当前脚本的PID，防止自杀
 
-echo "========== 智能进程清理工具 (仅限用户: $currentUser) ==========\n";
-echo "当前操作用户: $currentUser\n";
+echo "========== 智能进程清理工具 (增强版) ==========\n";
+echo "当前操作用户(完整): $currentUser\n";
 echo "当前脚本PID: $currentPid (保护中)\n\n";
 
 if (empty($currentUser)) {
@@ -31,7 +31,7 @@ echo "------------------------------------------------\n";
 // 获取进程列表
 $psOutput = [];
 // 使用 ps -ef 或 ps aux，这里沿用 ps -eo 格式以便解析
-exec('ps -eo user,pid,args', $psOutput);
+exec('ps -eo user,pid,args'， $psOutput);
 
 $killCount = 0;
 
@@ -50,16 +50,18 @@ foreach ($psOutput as $line) {
     $procCmd = $parts[2];
 
     // 核心匹配逻辑：严格匹配当前用户名
-    // 有些系统 ps 输出的用户名过长会被截断，因此这里做两重判断：
-    // 1. 完全相等
-    // 2. 如果 ps 输出的用户是当前用户名的前缀（处理截断情况，例如 yacolo...）
-    
     $isMyProcess = false;
     
+    // 1. 移除 ps 可能输出的 '+' 号 (例如 yacolo3+ -> yacolo3)
+    $cleanProcUser = rtrim($procUser, '+');
+
+    // 2. 匹配逻辑
     if ($procUser === $currentUser) {
+        // 情况A: 完全匹配
         $isMyProcess = true;
-    } elseif (strlen($procUser) >= 7 && strpos($currentUser, $procUser) === 0) {
-        // 处理 ps 输出用户名被截断的情况 (通常显示为7-8个字符)
+    } elseif (strlen($cleanProcUser) >= 3 && strpos($currentUser, $cleanProcUser) === 0) {
+        // 情况B: 缩写匹配 (例如 yacolo3 是 yacolo356302 的前缀)
+        // 且缩写长度至少3位，防止误匹配短用户名
         $isMyProcess = true;
     }
 
@@ -70,9 +72,17 @@ foreach ($psOutput as $line) {
         // 安全保护 2：不杀 ps 命令本身，防止误报
         if (strpos($procCmd, 'ps -eo') !== false) continue;
         if (strpos($procCmd, 'kill.php') !== false) continue;
+        
+        // 安全保护 3: 不杀 sshd (防止把自己踢下线，虽然一般没权限)
+        if (strpos($procCmd， 'sshd:') !== false) continue;
+        if (strpos($procCmd， 'bash') !== false && strpos($procCmd, 'start.sh') === false) {
+             // 这是一个可选保护：只保留交互式bash，但杀掉脚本启动的bash。
+             // 这里为了清理干净，建议不跳过，除非你在终端里操作怕被踢。
+             // 如果你是网页访问，不需要保留bash。
+        }
 
         // 执行查杀
-        echo "Kill PID: $procPid | 命令: " . substr($procCmd, 0, 60) . "... ";
+        echo "Kill PID: $procPid ($procUser) | 命令: " 。 substr($procCmd， 0, 50) . "... ";
         
         $out = [];
         $ret = -1;
@@ -89,8 +99,4 @@ foreach ($psOutput as $line) {
 
 echo "------------------------------------------------\n";
 echo "清理结束，共清理了 $killCount 个属于 [$currentUser] 的进程。\n";
-
-// 可选：最后列出当前剩余进程
-// echo "\n>>> 剩余进程检查:\n";
-// passthru("ps -u $currentUser");
 ?>
