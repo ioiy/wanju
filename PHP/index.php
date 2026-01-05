@@ -105,11 +105,23 @@ switch ($path) {
         
     case '/list':
         header("Content-Type: text/plain; charset=utf-8");
-        $user = trim(exec('whoami'));
-        echo "当前用户 ($user) 的进程列表：\n\n";
-        // 修改为只显示当前用户的进程
-        $allProcesses = shell_exec("ps -U $user -o user,pid,time,args -ww");
-        echo $allProcesses . "\n\n";
+        $currentUser = trim(exec('whoami'));
+
+        echo "========== 🔥 我的进程 (置顶优先显示) ==========\n";
+        echo "当前用户: $currentUser\n";
+        echo "统计时间: " . date("Y-m-d H:i:s") . "\n";
+        echo "------------------------------------------------\n";
+        
+        // 关键改进：
+        // -U $currentUser : 只显示你的进程
+        // -o ... : 优化显示的列，确保 PID 和 args 清晰
+        // -ww : 防止长命令（如带有很长 token 的 argo 命令）被截断
+        passthru("ps -U $currentUser -o user,pid,pcpu,pmem,start,time,args -ww");
+        
+        echo "\n\n";
+        echo "========== 🌍 系统全部进程 (ps aux) ==========\n";
+        echo "------------------------------------------------\n";
+        passthru("ps aux");
         break;
         
     default:
@@ -118,7 +130,7 @@ switch ($path) {
         break;
 }
 
-// 进程检查函数 [已修改]
+// 进程检查函数
 function checkProcess($pattern) {
     // 1. 获取当前系统用户名
     $user = trim(exec('whoami'));
