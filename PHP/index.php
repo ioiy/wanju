@@ -2,7 +2,7 @@
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
 $SUB_PATH = 'sub';      // 订阅路径
-$CHECK_NEZHA = false;   // 控制是否检测哪吒进程，false关闭，true开启，默认关闭
+$CHECK_NEZHA = true;   // 控制是否检测哪吒进程，false关闭，true开启，默认关闭
 
 // 命令执行函数
 function executeScript($script) {
@@ -105,50 +105,12 @@ switch ($path) {
         
     case '/list':
         header("Content-Type: text/plain; charset=utf-8");
-        echo "所有进程列表：\n\n";
-        $allProcesses = shell_exec("ps aux");
+        $user = trim(exec('whoami'));
+        echo "当前用户 ($user) 的进程列表：\n\n";
+        // 修改为只显示当前用户的进程
+        $allProcesses = shell_exec("ps -U $user -o user,pid,time,args -ww");
         echo $allProcesses . "\n\n";
         break;
-        
-    // case '/debug':
-    //     header("Content-Type: text/plain; charset=utf-8");
-    //     echo "=== 进程匹配测试 ===\n\n";
-        
-    //     global $CHECK_NEZHA;
-    //     echo "CHECK_NEZHA 设置: " . ($CHECK_NEZHA ? 'true' : 'false') . "\n\n";
-        
-    //     // 测试各个匹配模式
-    //     $patterns = [
-    //         'cloudflared' => 'tunnel.*--edge-ip-version auto', 
-    //         'sing-box' => 'run -c.*config\.json'  // sing-box: run -c /路径/config.json
-    //     ];
-        
-    //     // 只在启用时测试nezha
-    //     if ($CHECK_NEZHA) {
-    //         $patterns['nezha v0'] = ':[0-9].* -p';  // nezha v0: 更精确的匹配 - 端口和-p参数组合
-    //         $patterns['nezha v1'] = '-c.*config\.yaml';
-    //     }
-        
-    //     foreach ($patterns as $service => $pattern) {
-    //         echo "$service 模式: $pattern\n";
-    //         $output = [];
-    //         exec("ps aux | grep '$pattern' | grep -v grep", $output);
-    //         if (empty($output)) {
-    //             echo "结果: 未找到\n\n";
-    //         } else {
-    //             echo "结果: 找到 " . count($output) . " 个匹配项\n";
-    //             foreach ($output as $line) {
-    //                 echo "  $line\n";
-    //             }
-    //             echo "\n";
-    //         }
-    //     }
-        
-    //     echo "3. checkProcesses() 函数结果：\n";
-    //     $result = checkProcesses();
-    //     echo "运行中: " . implode(", ", $result['running']) . "\n";
-    //     echo "未运行: " . implode(", ", $result['not_running']) . "\n";
-    //     break;
         
     default:
         http_response_code(404);
@@ -156,9 +118,17 @@ switch ($path) {
         break;
 }
 
-// 进程检查函数
+// 进程检查函数 [已修改]
 function checkProcess($pattern) {
-    $command = "ps aux | grep '$pattern' | grep -v grep";
+    // 1. 获取当前系统用户名
+    $user = trim(exec('whoami'));
+    
+    // 2. 构造命令：
+    // -U $user : 只列出该用户的进程
+    // -o args  : 只显示命令参数部分 (避免 grep 匹配到用户名或其他信息)
+    // -ww      : 强制不截断输出 (Serv00/FreeBSD上非常重要，否则长命令会被截断导致匹配失败)
+    $command = "ps -U $user -o args -ww | grep '$pattern' | grep -v grep";
+    
     $output = [];
     exec($command, $output);
     return count($output) > 0;
@@ -211,3 +181,4 @@ function checkProcesses() {
         'not_running' => $notRunningProcesses
     ];
 }
+?>
